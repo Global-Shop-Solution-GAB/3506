@@ -1,0 +1,106 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+F.Intrinsic.Control.CallSub(Bdfload)
+F.ODBC.Connection!con.Close
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3506_Job_In_Process_Cert.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+
+Program.Sub.BDFLoad.Start
+F.Intrinsic.Control.SetErrorHandler("BDFLoad_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sJob.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.iRowCnt.Declare(Long)
+V.Local.i.Declare(Long)
+V.Local.sSeq.Declare(String)
+V.Local.sWriteRow.Declare(String)
+V.Local.sReadRow.Declare(String)
+V.Local.sRR.Declare(String)
+V.Local.iColor.Declare(Long)
+V.Local.sReady.Declare(String)
+V.Local.s9.Declare(String)
+
+V.Local.iColor.Set(65280)
+F.Intrinsic.BDF.Load("AUX001","AUX001")
+F.Intrinsic.BDF.Clone("AUX001","Clone")
+F.Intrinsic.BDF.ReadRowCount("AUX001",V.Local.iRowCnt)
+F.Intrinsic.Math.Sub(V.Local.iRowCnt,1,V.Local.iRowCnt)
+F.Intrinsic.Control.For(V.Local.i,0,V.Local.iRowCnt,1)
+	'read each row from the grid and split
+	F.Intrinsic.BDF.ReadRow("AUX001",V.Local.i,V.Local.sReadRow)
+	F.Intrinsic.String.Split(V.Local.sReadRow,"|~|",V.Local.sRR)
+	F.Intrinsic.String.Split(V.Local.sRR(1),"-",V.Local.sJob)
+	V.Local.sSeq.Set(V.Local.sRR(2).Trim)
+	'if  only 8 rows set the 9th to blank
+	F.Intrinsic.Control.If(V.Local.sRR.UBound,=,8)
+		V.Local.s9.Set("")
+	'if there is a 9th row build it in
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("|~|{0}",V.Local.sRR(9),V.Local.s9)
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.String.Build("Select * From JOBS_IN_PROCESS_G Where Job = '{0}' and Suffix = '{1}' and Seq = '{2}'",V.Local.sJob(0).Trim,V.Local.sJob(1).Trim,V.Local.sSeq,V.Local.sSQL)
+	F.ODBC.Connection!con.OpenRecordsetRO("rst",V.Local.sSQL)
+	'build the 9th row into the string and color everything
+	F.Intrinsic.Control.If(V.ODBC.con!rst.EOF,=,False)
+		F.Intrinsic.String.Build("{0}]=BC::{1}",V.Local.s9,V.Local.iColor,V.Local.s9)
+		F.Intrinsic.String.Build("{0}]=[BC::{1}|~|{2}]=[BC::{3}|~|{4}]=[BC::{5}|~|{6}]=[BC::{7}|~|{8}]=[BC::{9}|~|{10}]=[BC::{11}|~|{12}]=[BC::{13}|~|{14}]=[BC::{15}|~|{16}]=[BC::{17}{18}",V.Local.sRR(0),V.Local.iColor,V.Local.sRR(1),V.Local.iColor,V.Local.sRR(2),V.Local.iColor,V.Local.sRR(3),V.Local.iColor,V.Local.sRR(4),V.Local.iColor,V.Local.sRR(5),V.Local.iColor,V.Local.sRR(6),V.Local.iColor,V.Local.sRR(7),V.Local.iColor,V.Local.sRR(8),V.Local.iColor,V.Local.s9,V.Local.sWriteRow)
+	'if ready set to green and build everything back together without coloring
+	F.Intrinsic.Control.Else
+		F.Intrinsic.Control.If(V.Local.sRR(3),=,"Y")
+			F.Intrinsic.String.Build("{0}]=[BC::{1}",V.Local.sRR(3),V.Local.iColor,V.Local.sReady)
+		F.Intrinsic.Control.Else
+			V.Local.sReady.Set(V.Local.sRR(3))
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.String.Build("{0}|~|{1}|~|{2}|~|{3}|~|{4}|~|{5}|~|{6}|~|{7}|~|{8}{9}",V.Local.sRR(0),V.Local.sRR(1),V.Local.sRR(2),V.Local.sReady,V.Local.sRR(4),V.Local.sRR(5),V.Local.sRR(6),V.Local.sRR(7),V.Local.sRR(8),V.Local.s9,V.Local.sWriteRow)
+	F.Intrinsic.Control.EndIf
+	F.ODBC.con!rst.Close
+	f.Intrinsic.BDF.WriteRow("Clone",V.Local.sWriteRow.Trim)
+F.Intrinsic.Control.Next(V.Local.i)
+f.Intrinsic.BDF.Save("Clone","AUX001")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("BDFLoad_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3506_Job_In_Process_Cert.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.BDFLoad.End
+
+
+Program.Sub.Comments.Start
+${$0$}$GCG_Job_In_Process_Cert$}$Strider$}$10/6/2015
+${$1$}$$}$$}$0$}$15954$}$Post Grid Load Hook$}$10/6/2015 3:54:43 PM$}$(Program: OLG002; Screen: OLS007)
+
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$In the GUI (for All Department, All Workcenter, and All Workgroup grid only), this program changes the Ready column field from being green when a job is "READY" to display the whole row green when a job is "In Process". The benefit will allow workers to distinguish which job has been started and in process from a job that is ready and needs to be started.
+Program.Sub.Comments.End
+
